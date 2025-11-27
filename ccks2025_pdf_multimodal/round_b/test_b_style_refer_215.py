@@ -5,12 +5,12 @@ from vllm import LLM, SamplingParams
 from qwen_vl_utils import process_vision_info
 import os
 
-train_base_dir = '/data/coding/patent_b/train/'
-df_train_question = pd.read_json("/data/coding/patent_b/train/train.jsonl",lines=True)
+train_base_dir = '/usr/yuque/guo/pdf_processer/patent_b/train/'
+df_train_question = pd.read_json("/usr/yuque/guo/pdf_processer/patent_b/train/train.jsonl",lines=True)
 train_question_vector = np.load('all_train_b_question_vectors.npy')
 
-base_dir = '/data/coding/patent_b/test/'
-df_question = pd.read_json("/data/coding/patent_b/test/test.jsonl",lines=True)
+base_dir = '/usr/yuque/guo/pdf_processer/patent_b/test/'
+df_question = pd.read_json("/usr/yuque/guo/pdf_processer/patent_b/test/test.jsonl",lines=True)
 question_vector = np.load('all_test_b_question_vectors.npy')
 
 test_pdf_image_vectors = np.load("test_b_pdf_img_vectors.npy")
@@ -20,7 +20,7 @@ test_pdf_image_page_num_mapping = pd.read_csv('test_b_pdf_img_page_num_mapping.c
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 os.environ["MAX_PIXELS"] = "1568000" # 1568000  2000 token
 #os.environ['FPS_MAX_FRAMES'] = "2"
-model_path = "/data/coding/lora_qwen25_vl_32b_for_b/v0-20250802-085531/checkpoint-215-merged/"
+model_path = "/usr/yuque/guo/pdf_processer/lora_qwen25_vl_32b_for_b/v0-20250802-085531/checkpoint-215-merged/"
 vl_model = LLM(
     model=model_path,
     limit_mm_per_prompt={"image": 3},

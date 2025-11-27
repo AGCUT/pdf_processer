@@ -1,5 +1,7 @@
 # Data files
 data/
+patent_b/
+llm_model/
 
 # Python
 __pycache__/
