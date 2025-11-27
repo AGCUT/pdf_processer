@@ -14,7 +14,7 @@ import numpy as np
 from tqdm import tqdm
 import multiprocessing as mp
 from functools import partial
-import torch
+# 不要在主进程导入torch，让子进程独立导入
 from warnings import filterwarnings
 filterwarnings("ignore")
 
@@ -67,18 +67,33 @@ def convert_pdfs_to_images(base_dir, num_workers=8):
 
 def process_images_on_gpu(gpu_id, pdf_files, base_dir, output_queue):
     """在指定GPU上处理图片生成向量"""
+    # 必须在导入任何torch相关模块之前设置环境变量
     import os
+    import sys
+
+    # 设置当前进程只能看到指定的GPU，并映射为设备0
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     os.environ["MAX_PIXELS"] = '1229312'
 
-    # 导入GME模型
-    from gme_inference import GmeQwen2VL
+    # 清除已经导入的torch缓存（如果有）
+    if 'torch' in sys.modules:
+        del sys.modules['torch']
+    if 'transformers' in sys.modules:
+        del sys.modules['transformers']
 
-    # 加载模型到当前GPU
+    # 现在导入GME模型
+    from gme_inference import GmeQwen2VL
+    import torch
+
+    # 验证GPU设置
+    print(f"[进程 GPU {gpu_id}] 可见GPU数量: {torch.cuda.device_count()}, 当前设备: {torch.cuda.current_device()}")
+
+    # 加载模型到当前GPU（现在GPU {gpu_id}被映射为设备0）
     gme = GmeQwen2VL(
         model_name=base_dir.replace('/patent_b/train', '').replace('/patent_b/test', '') +
                    '/llm_model/iic/gme-Qwen2-VL-7B-Instruct',
-        max_image_tokens=1280
+        max_image_tokens=1280,
+        device='cuda:0'  # 使用映射后的设备0
     )
 
     local_vectors = []
