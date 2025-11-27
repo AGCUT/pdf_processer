@@ -95,6 +95,7 @@ def process_images_on_gpu(gpu_id, pdf_files, base_dir, output_queue):
     # 必须在导入任何torch相关模块之前设置环境变量
     import os
     import sys
+    import gc
 
     # 设置当前进程只能看到指定的GPU，并映射为设备0
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
@@ -125,7 +126,8 @@ def process_images_on_gpu(gpu_id, pdf_files, base_dir, output_queue):
     local_page_nums = []
     local_file_names = []
 
-    for pdf_file in tqdm(pdf_files, desc=f"GPU {gpu_id}", position=gpu_id):
+    # 移除position参数，避免多进程tqdm冲突
+    for pdf_file in tqdm(pdf_files, desc=f"GPU {gpu_id}"):
         file_name = pdf_file.split('.')[0]
         img_dir = base_dir + '/pdf_img/' + file_name
 
@@ -153,6 +155,15 @@ def process_images_on_gpu(gpu_id, pdf_files, base_dir, output_queue):
         'page_nums': local_page_nums,
         'file_names': local_file_names
     })
+
+    # 显式清理GPU资源
+    try:
+        del gme
+        torch.cuda.empty_cache()
+        gc.collect()
+        print(f"[进程 GPU {gpu_id}] 资源已清理")
+    except Exception as e:
+        print(f"[进程 GPU {gpu_id}] 清理资源时出错: {e}")
 
 
 def generate_image_vectors_multigpu(base_dir, gpu_ids):
@@ -188,31 +199,56 @@ def generate_image_vectors_multigpu(base_dir, gpu_ids):
         p.start()
         processes.append(p)
 
-    # 等待所有进程完成
-    for p in processes:
-        p.join()
-
-    # 收集结果
-    print("\n收集所有GPU的结果...")
+    # 边等待边收集结果，避免Queue阻塞
+    print("\n等待GPU进程完成并收集结果...")
     all_results = []
-    while not output_queue.empty():
-        all_results.append(output_queue.get())
+
+    # 收集结果（带超时）
+    import time
+    results_collected = 0
+    while results_collected < num_gpus:
+        try:
+            result = output_queue.get(timeout=5)
+            all_results.append(result)
+            results_collected += 1
+            print(f"已收集 {results_collected}/{num_gpus} 个GPU的结果")
+        except:
+            # 检查是否还有进程在运行
+            alive_count = sum([p.is_alive() for p in processes])
+            if alive_count == 0:
+                break
+            time.sleep(1)
+
+    # 等待所有进程完成（带超时）
+    for i, p in enumerate(processes):
+        p.join(timeout=30)
+        if p.is_alive():
+            print(f"⚠ 警告: GPU {gpu_ids[i]} 进程未正常退出，强制终止")
+            p.terminate()
+            p.join()
+
+    # 关闭队列
+    output_queue.close()
+    output_queue.join_thread()
 
     # 按GPU ID排序
     all_results.sort(key=lambda x: x['gpu_id'])
 
     # 合并所有向量
-    all_vectors = np.vstack([r['vectors'] for r in all_results])
-    all_page_nums = []
-    all_file_names = []
+    if len(all_results) > 0:
+        all_vectors = np.vstack([r['vectors'] for r in all_results if len(r['vectors']) > 0])
+        all_page_nums = []
+        all_file_names = []
 
-    for r in all_results:
-        all_page_nums.extend(r['page_nums'])
-        all_file_names.extend(r['file_names'])
+        for r in all_results:
+            all_page_nums.extend(r['page_nums'])
+            all_file_names.extend(r['file_names'])
 
-    print(f"✓ 生成了 {len(all_vectors)} 个图片向量 (维度: {all_vectors.shape})\n")
-
-    return all_vectors, all_page_nums, all_file_names
+        print(f"✓ 生成了 {len(all_vectors)} 个图片向量 (维度: {all_vectors.shape})\n")
+        return all_vectors, all_page_nums, all_file_names
+    else:
+        print("⚠ 警告: 没有收集到任何结果")
+        return np.array([]), [], []
 
 
 def generate_question_vectors(base_dir, jsonl_file, gpu_id=0):
