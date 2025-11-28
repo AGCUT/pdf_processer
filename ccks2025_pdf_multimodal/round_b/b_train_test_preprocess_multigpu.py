@@ -90,7 +90,7 @@ def convert_pdfs_to_images(base_dir, num_workers=8, force=False):
     print(f"✓ 成功转换 {success_count}/{len(pdf_file_list)} 个PDF文件\n")
 
 
-def process_images_on_gpu(gpu_id, pdf_files, base_dir, output_queue):
+def process_images_on_gpu(gpu_id, pdf_files, base_dir, output_queue, max_retries=3):
     """在指定GPU上处理图片生成向量"""
     # 必须在导入任何torch相关模块之前设置环境变量
     import os
@@ -125,6 +125,7 @@ def process_images_on_gpu(gpu_id, pdf_files, base_dir, output_queue):
     local_vectors = []
     local_page_nums = []
     local_file_names = []
+    failed_images = []  # 记录失败的图片
 
     # 移除position参数，避免多进程tqdm冲突
     for pdf_file in tqdm(pdf_files, desc=f"GPU {gpu_id}"):
@@ -138,22 +139,50 @@ def process_images_on_gpu(gpu_id, pdf_files, base_dir, output_queue):
 
         for img_file in file_list:
             image_path = img_dir + '/' + img_file
-            try:
-                e_text = gme.get_image_embeddings(images=[image_path])
-                local_vectors.append(e_text[0].to('cpu').numpy())
+            success = False
+            last_error = None
 
-                page_num = int(img_file.split('.')[0])
-                local_page_nums.append(page_num)
-                local_file_names.append(file_name)
-            except Exception as e:
-                print(f"Error processing {image_path}: {e}")
+            # 重试机制
+            for attempt in range(max_retries):
+                try:
+                    e_text = gme.get_image_embeddings(images=[image_path])
+                    local_vectors.append(e_text[0].to('cpu').numpy())
+
+                    page_num = int(img_file.split('.')[0])
+                    local_page_nums.append(page_num)
+                    local_file_names.append(file_name)
+                    success = True
+                    break  # 成功则跳出重试循环
+                except Exception as e:
+                    last_error = str(e)
+                    if attempt < max_retries - 1:
+                        # 不是最后一次尝试，等待一下再重试
+                        import time
+                        time.sleep(0.5)
+                    continue
+
+            # 如果所有重试都失败，记录失败信息
+            if not success:
+                failed_images.append({
+                    'image_path': image_path,
+                    'file_name': file_name,
+                    'page': img_file.split('.')[0],
+                    'error': last_error
+                })
+                print(f"[GPU {gpu_id}] ✗ 失败 ({max_retries}次重试): {image_path} - {last_error}")
+
+    # 打印统计信息
+    total_processed = len(local_vectors)
+    total_failed = len(failed_images)
+    print(f"[进程 GPU {gpu_id}] 处理完成: 成功 {total_processed}, 失败 {total_failed}")
 
     # 将结果放入队列
     output_queue.put({
         'gpu_id': gpu_id,
         'vectors': np.array(local_vectors),
         'page_nums': local_page_nums,
-        'file_names': local_file_names
+        'file_names': local_file_names,
+        'failed_images': failed_images  # 添加失败列表
     })
 
     # 显式清理GPU资源
@@ -234,21 +263,44 @@ def generate_image_vectors_multigpu(base_dir, gpu_ids):
     # 按GPU ID排序
     all_results.sort(key=lambda x: x['gpu_id'])
 
-    # 合并所有向量
+    # 合并所有向量和失败信息
     if len(all_results) > 0:
         all_vectors = np.vstack([r['vectors'] for r in all_results if len(r['vectors']) > 0])
         all_page_nums = []
         all_file_names = []
+        all_failed_images = []
 
         for r in all_results:
             all_page_nums.extend(r['page_nums'])
             all_file_names.extend(r['file_names'])
+            all_failed_images.extend(r.get('failed_images', []))
 
-        print(f"✓ 生成了 {len(all_vectors)} 个图片向量 (维度: {all_vectors.shape})\n")
-        return all_vectors, all_page_nums, all_file_names
+        print(f"✓ 生成了 {len(all_vectors)} 个图片向量 (维度: {all_vectors.shape})")
+
+        # 生成失败报告
+        if len(all_failed_images) > 0:
+            print(f"⚠ 警告: {len(all_failed_images)} 个图片处理失败")
+
+            # 保存失败报告
+            failed_df = pd.DataFrame(all_failed_images)
+            failed_report_file = base_dir + '/failed_images_report.csv'
+            failed_df.to_csv(failed_report_file, index=False, encoding='utf-8')
+            print(f"✓ 失败报告已保存: {failed_report_file}")
+
+            # 显示前10个失败的样例
+            print("\n前10个失败样例:")
+            for i, failed in enumerate(all_failed_images[:10]):
+                print(f"  {i+1}. {failed['file_name']}/page{failed['page']}: {failed['error'][:100]}")
+            if len(all_failed_images) > 10:
+                print(f"  ... 还有 {len(all_failed_images) - 10} 个失败")
+        else:
+            print(f"✓ 所有图片处理成功！")
+
+        print()
+        return all_vectors, all_page_nums, all_file_names, all_failed_images
     else:
         print("⚠ 警告: 没有收集到任何结果")
-        return np.array([]), [], []
+        return np.array([]), [], [], []
 
 
 def generate_question_vectors(base_dir, jsonl_file, gpu_id=0):
@@ -305,20 +357,23 @@ def process_dataset(base_dir, dataset_name, gpu_ids, num_workers=8, force_conver
 
     # 步骤2: 生成图片向量（多GPU） - 可以跳过
     if not skip_vector and not os.path.exists(vector_file):
-        img_vectors, page_nums, file_names = generate_image_vectors_multigpu(base_dir, gpu_ids)
+        img_vectors, page_nums, file_names, failed_images = generate_image_vectors_multigpu(base_dir, gpu_ids)
 
         # 保存图片向量和映射关系
-        img_page_num_mapping = pd.DataFrame({
-            'index': range(len(page_nums)),
-            'page_num': page_nums,
-            'file_name': file_names
-        })
+        if len(img_vectors) > 0:
+            img_page_num_mapping = pd.DataFrame({
+                'index': range(len(page_nums)),
+                'page_num': page_nums,
+                'file_name': file_names
+            })
 
-        np.save(vector_file, img_vectors)
-        img_page_num_mapping.to_csv(mapping_file, index=False)
+            np.save(vector_file, img_vectors)
+            img_page_num_mapping.to_csv(mapping_file, index=False)
 
-        print(f"✓ 已保存: {vector_file}")
-        print(f"✓ 已保存: {mapping_file}")
+            print(f"✓ 已保存: {vector_file}")
+            print(f"✓ 已保存: {mapping_file}")
+        else:
+            print(f"⚠ 警告: 没有生成任何向量，跳过保存")
     elif os.path.exists(vector_file):
         print(f"\n⚠ 图片向量文件已存在: {vector_file}")
         print(f"✓ 跳过图片向量生成（使用 --force-vector 强制重新生成）\n")
@@ -345,6 +400,8 @@ def main():
                         help='使用的GPU ID，逗号分隔，例如: 0,1,2,3')
     parser.add_argument('--num-workers', type=int, default=8,
                         help='PDF转JPG的进程数')
+    parser.add_argument('--max-retries', type=int, default=3,
+                        help='图片处理失败时的最大重试次数（默认3次）')
     parser.add_argument('--train-dir', type=str,
                         default='/usr/yuque/guo/pdf_processer/patent_b/train',
                         help='训练集目录')
