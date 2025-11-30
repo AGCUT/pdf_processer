@@ -43,7 +43,6 @@ export CUDA_VISIBLE_DEVICES=${GPUS}
 
 nohup swift sft \
     --model ${MODEL_PATH} \
-    --model_type qwen3_vl \
     --dataset ${DATASET_PATH} \
     --train_type lora \
     --device_map auto \
