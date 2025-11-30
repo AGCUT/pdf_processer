@@ -34,8 +34,14 @@ echo "使用GPU: ${GPUS}"
 echo "日志文件: ${OUTPUT_DIR}/training.log"
 echo "=============================================="
 
+# 创建输出目录
+mkdir -p ${OUTPUT_DIR}
+
 # 使用 nohup 防止网络中断导致训练停止
-nohup MAX_PIXELS=1229312 CUDA_VISIBLE_DEVICES=${GPUS} swift sft \
+export MAX_PIXELS=1229312
+export CUDA_VISIBLE_DEVICES=${GPUS}
+
+nohup swift sft \
     --model ${MODEL_PATH} \
     --model_type qwen3_vl \
     --dataset ${DATASET_PATH} \
