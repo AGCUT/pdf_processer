@@ -31,9 +31,11 @@ echo "模型路径: ${MODEL_PATH}"
 echo "数据集: ${DATASET_PATH}"
 echo "输出目录: ${OUTPUT_DIR}"
 echo "使用GPU: ${GPUS}"
+echo "日志文件: ${OUTPUT_DIR}/training.log"
 echo "=============================================="
 
-MAX_PIXELS=1229312 CUDA_VISIBLE_DEVICES=${GPUS} swift sft \
+# 使用 nohup 防止网络中断导致训练停止
+nohup MAX_PIXELS=1229312 CUDA_VISIBLE_DEVICES=${GPUS} swift sft \
     --model ${MODEL_PATH} \
     --model_type qwen3_vl \
     --dataset ${DATASET_PATH} \
@@ -62,9 +64,12 @@ MAX_PIXELS=1229312 CUDA_VISIBLE_DEVICES=${GPUS} swift sft \
     --lr_scheduler_type cosine \
     --warmup_ratio 0.05 \
     --gradient_checkpointing true \
-    --deepspeed zero2
+    --deepspeed zero2 \
+    > ${OUTPUT_DIR}/training.log 2>&1 &
 
-echo "=============================================="
-echo "训练完成！"
-echo "LoRA权重保存在: ${OUTPUT_DIR}"
+# 获取后台进程PID
+TRAIN_PID=$!
+echo "训练已在后台启动，进程PID: ${TRAIN_PID}"
+echo "查看实时日志: tail -f ${OUTPUT_DIR}/training.log"
+echo "查看进程状态: ps -p ${TRAIN_PID}"
 echo "=============================================="
