@@ -69,7 +69,6 @@ nohup swift sft \
     --lr_scheduler_type cosine \
     --warmup_ratio 0.05 \
     --gradient_checkpointing true \
-    --deepspeed zero2 \
     > ${OUTPUT_DIR}/training.log 2>&1 &
 
 # 获取后台进程PID
