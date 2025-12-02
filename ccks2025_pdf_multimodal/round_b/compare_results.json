@@ -1,0 +1,152 @@
+{
+  "test_qwen3_vl": {
+    "total_samples": 3502,
+    "metrics": {
+      "exact_match": 0.23386636207881212,
+      "rouge1_f1": 0.5515457843484973,
+      "bert_score_f1": 0.5861753416403573
+    },
+    "weights": {
+      "bert_score": 0.5,
+      "rouge1": 0.25,
+      "exact_match": 0.25
+    },
+    "final_score": 0.489440707427006,
+    "exact_match": 0.23386636207881212,
+    "rouge1_f1": 0.5515457843484973,
+    "bert_score_f1": 0.5861753416403573,
+    "statistics": {
+      "exact_match_count": 819,
+      "rouge1_f1_std": 0.34439700685397356,
+      "bert_score_f1_std": 0.31931621295464374,
+      "final_score_std": 0.3238957117016014,
+      "final_score_min": -0.14062051475048065,
+      "final_score_max": 1.000000536441803
+    }
+  },
+  "test_qwen3_vl_cot": {
+    "total_samples": 500,
+    "metrics": {
+      "exact_match": 0.216,
+      "rouge1_f1": 0.513750958986123,
+      "bert_score_f1": 0.536024894061964
+    },
+    "weights": {
+      "bert_score": 0.5,
+      "rouge1": 0.25,
+      "exact_match": 0.25
+    },
+    "final_score": 0.45045018677751275,
+    "exact_match": 0.216,
+    "rouge1_f1": 0.513750958986123,
+    "bert_score_f1": 0.536024894061964,
+    "statistics": {
+      "exact_match_count": 108,
+      "rouge1_f1_std": 0.3456889806188635,
+      "bert_score_f1_std": 0.3281543724193205,
+      "final_score_std": 0.3288973315009946,
+      "final_score_min": -0.08793770521879196,
+      "final_score_max": 1.0000004172325134
+    }
+  },
+  "base_full": {
+    "total_samples": 500,
+    "metrics": {
+      "exact_match": 0.16,
+      "rouge1_f1": 0.4824036077658357,
+      "bert_score_f1": 0.47707740658707914
+    },
+    "weights": {
+      "bert_score": 0.5,
+      "rouge1": 0.25,
+      "exact_match": 0.25
+    },
+    "final_score": 0.3991396052349985,
+    "exact_match": 0.16,
+    "rouge1_f1": 0.4824036077658357,
+    "bert_score_f1": 0.47707740658707914,
+    "statistics": {
+      "exact_match_count": 80,
+      "rouge1_f1_std": 0.30917380131379935,
+      "bert_score_f1_std": 0.310748684898733,
+      "final_score_std": 0.29993452704345325,
+      "final_score_min": -0.08386407792568207,
+      "final_score_max": 1.0000004172325134
+    }
+  },
+  "minimal": {
+    "total_samples": 500,
+    "metrics": {
+      "exact_match": 0.15,
+      "rouge1_f1": 0.4465656832243648,
+      "bert_score_f1": 0.48488403215818104
+    },
+    "weights": {
+      "bert_score": 0.5,
+      "rouge1": 0.25,
+      "exact_match": 0.25
+    },
+    "final_score": 0.39158343688518177,
+    "exact_match": 0.15,
+    "rouge1_f1": 0.4465656832243648,
+    "bert_score_f1": 0.48488403215818104,
+    "statistics": {
+      "exact_match_count": 75,
+      "rouge1_f1_std": 0.33934358373237383,
+      "bert_score_f1_std": 0.31665147730182597,
+      "final_score_std": 0.3074464892195001,
+      "final_score_min": -0.08095256239175797,
+      "final_score_max": 1.000000238418579
+    }
+  },
+  "no_retrieval": {
+    "total_samples": 500,
+    "metrics": {
+      "exact_match": 0.144,
+      "rouge1_f1": 0.428337530104036,
+      "bert_score_f1": 0.47320243922248484
+    },
+    "weights": {
+      "bert_score": 0.5,
+      "rouge1": 0.25,
+      "exact_match": 0.25
+    },
+    "final_score": 0.3796856021372514,
+    "exact_match": 0.144,
+    "rouge1_f1": 0.428337530104036,
+    "bert_score_f1": 0.47320243922248484,
+    "statistics": {
+      "exact_match_count": 72,
+      "rouge1_f1_std": 0.3424614438785731,
+      "bert_score_f1_std": 0.3164955468335339,
+      "final_score_std": 0.30685781435727827,
+      "final_score_min": -0.08095266669988632,
+      "final_score_max": 1.000000238418579
+    }
+  },
+  "no_style": {
+    "total_samples": 500,
+    "metrics": {
+      "exact_match": 0.268,
+      "rouge1_f1": 0.5660980736094288,
+      "bert_score_f1": 0.593824475614354
+    },
+    "weights": {
+      "bert_score": 0.5,
+      "rouge1": 0.25,
+      "exact_match": 0.25
+    },
+    "final_score": 0.5054367562095342,
+    "exact_match": 0.268,
+    "rouge1_f1": 0.5660980736094288,
+    "bert_score_f1": 0.593824475614354,
+    "statistics": {
+      "exact_match_count": 134,
+      "rouge1_f1_std": 0.34879673002666534,
+      "bert_score_f1_std": 0.3244871586805591,
+      "final_score_std": 0.33522770312190947,
+      "final_score_min": -0.06928381323814392,
+      "final_score_max": 1.0000004172325134
+    }
+  }
+}
