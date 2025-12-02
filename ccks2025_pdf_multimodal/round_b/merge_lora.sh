@@ -3,34 +3,53 @@
 
 # 配置路径
 BASE_MODEL="/usr/yuque/guo/pdf_processer/llm_model/Qwen/Qwen3-VL-32B-Instruct"
-LORA_DIR="/usr/yuque/guo/pdf_processer/lora_output_qwen3_vl"
-OUTPUT_DIR="/usr/yuque/guo/pdf_processer/qwen3_vl_merged"
+CHECKPOINT_DIR="/usr/yuque/guo/pdf_processer/lora_output_qwen3_vl/v4-20251201-034347/checkpoint-45"
+OUTPUT_DIR="/usr/yuque/guo/pdf_processer/qwen3_vl_32b_merged"
+
+# GPU配置
+export CUDA_VISIBLE_DEVICES="4,5,6,7"
 
 echo "=============================================="
-echo "合并 LoRA 权重"
+echo "合并 LoRA 权重到基础模型"
 echo "=============================================="
 echo "基础模型: ${BASE_MODEL}"
-echo "LoRA目录: ${LORA_DIR}"
+echo "LoRA Checkpoint: ${CHECKPOINT_DIR}"
 echo "输出目录: ${OUTPUT_DIR}"
 echo "=============================================="
 
-# 查找最新的 checkpoint
-LATEST_CHECKPOINT=$(ls -td ${LORA_DIR}/v*/checkpoint-* 2>/dev/null | head -1)
-
-if [ -z "$LATEST_CHECKPOINT" ]; then
-    echo "错误: 未找到 checkpoint"
+# 检查路径是否存在
+if [ ! -d "${BASE_MODEL}" ]; then
+    echo "错误: 基础模型目录不存在: ${BASE_MODEL}"
     exit 1
 fi
 
-echo "找到 checkpoint: ${LATEST_CHECKPOINT}"
+if [ ! -d "${CHECKPOINT_DIR}" ]; then
+    echo "错误: checkpoint 目录不存在: ${CHECKPOINT_DIR}"
+    echo "请检查以下目录："
+    ls -lh /usr/yuque/guo/pdf_processer/lora_output_qwen3_vl/
+    exit 1
+fi
+
+echo "开始合并..."
 echo ""
 
-# 使用 swift 合并权重
+# 使用 swift export 合并 LoRA 权重
 swift export \
-    --ckpt_dir ${LATEST_CHECKPOINT} \
+    --model ${BASE_MODEL} \
+    --adapters ${CHECKPOINT_DIR} \
+    --output_dir ${OUTPUT_DIR} \
     --merge_lora true
 
-echo "=============================================="
-echo "合并完成！"
-echo "合并后的模型路径: ${LATEST_CHECKPOINT}-merged"
-echo "=============================================="
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "=============================================="
+    echo "合并完成！"
+    echo "合并后的模型路径: ${OUTPUT_DIR}"
+    echo "=============================================="
+else
+    echo ""
+    echo "=============================================="
+    echo "合并失败！请检查错误信息"
+    echo "=============================================="
+    exit 1
+fi
