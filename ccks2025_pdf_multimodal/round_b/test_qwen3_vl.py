@@ -51,9 +51,9 @@ print("=" * 60)
 vl_model = LLM(
     model=model_path,
     limit_mm_per_prompt={"image": 3},
-    gpu_memory_utilization=0.6,  # 降低显存利用率
+    gpu_memory_utilization=0.9,  # 适当提高显存利用率
     tensor_parallel_size=4,
-    max_model_len=4096,  # 降低最大长度
+    max_model_len=8192,  # 恢复原始长度
     max_num_seqs=1
 )
 processor = AutoProcessor.from_pretrained(model_path)
