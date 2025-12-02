@@ -38,7 +38,7 @@ test_pdf_image_page_num_mapping = pd.read_csv('test_b_pdf_img_page_num_mapping.c
 # ============================================
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
-os.environ["MAX_PIXELS"] = "1568000"
+os.environ["MAX_PIXELS"] = "602112"  # 与训练时保持一致
 
 # 合并后的模型路径
 model_path = "/usr/yuque/guo/pdf_processer/qwen3_vl_32b_merged"
@@ -185,7 +185,7 @@ def get_image_answer(document_name, question, question_idx):
         messages[0]['content'].append({
             "type": "image",
             "image": img_file,
-            "max_pixels": 1568000
+            "max_pixels": 602112
         })
 
     messages[0]['content'].append({
@@ -235,7 +235,7 @@ def get_mix_answer_img(document_name, pic_page_num, question, question_idx, if_n
             {
                 "type": "image",
                 "image": main_image,
-                "max_pixels": 1568000 if if_need_other else 2352000
+                "max_pixels": 602112
             },
         ]
     }]
@@ -246,7 +246,7 @@ def get_mix_answer_img(document_name, pic_page_num, question, question_idx, if_n
             messages[0]['content'].append({
                 "type": "image",
                 "image": img_file,
-                "max_pixels": 1568000
+                "max_pixels": 602112
             })
 
     messages[0]['content'].append({
