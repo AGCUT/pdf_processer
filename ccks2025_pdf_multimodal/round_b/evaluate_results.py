@@ -150,8 +150,18 @@ def evaluate_single(pred, gold, bert_f1=None):
 
 
 def evaluate_results(results_file, gold_file=None, pred_key='style_answer', gold_key='answer'):
-    """评估结果文件"""
+    """
+    评估结果文件
 
+    支持两种格式：
+    1. 标准答案在同一文件中（如训练集）：通过idx索引匹配
+    2. 标准答案在单独文件中（如测试集）：通过id字段匹配
+       - gold_file格式: {"id": 1, "answer": "..."}
+       - results_file格式: {"idx": "0", "style_answer": "..."}
+       - 注意：idx从0开始，id从1开始，需要+1匹配
+    """
+
+    # 加载预测结果
     predictions = []
     with open(results_file, 'r', encoding='utf-8') as f:
         for line in f:
@@ -160,12 +170,36 @@ def evaluate_results(results_file, gold_file=None, pred_key='style_answer', gold
 
     print(f"加载预测结果: {len(predictions)} 条")
 
+    # 加载标准答案
     if gold_file:
-        df_gold = pd.read_json(gold_file, lines=True)
-    else:
-        df_gold = pd.read_json('/usr/yuque/guo/pdf_processer/patent_b/train/train.jsonl', lines=True)
+        gold_data = []
+        with open(gold_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    gold_data.append(json.loads(line))
 
-    print(f"加载标准答案: {len(df_gold)} 条")
+        # 判断标准答案格式：是否有id字段
+        if gold_data and 'id' in gold_data[0]:
+            # 格式: {"id": 1, "answer": "..."} - 通过id匹配
+            gold_dict = {item['id']: item[gold_key] for item in gold_data}
+            use_id_match = True
+            print(f"加载标准答案: {len(gold_dict)} 条 (通过id匹配)")
+        else:
+            # 格式: 普通jsonl - 通过索引匹配
+            df_gold = pd.DataFrame(gold_data)
+            use_id_match = False
+            print(f"加载标准答案: {len(df_gold)} 条 (通过索引匹配)")
+    else:
+        # 默认使用测试集标准答案
+        default_gold_file = '/usr/yuque/guo/pdf_processer/patent_b/test/answers.jsonl'
+        gold_data = []
+        with open(default_gold_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    gold_data.append(json.loads(line))
+        gold_dict = {item['id']: item[gold_key] for item in gold_data}
+        use_id_match = True
+        print(f"加载标准答案: {len(gold_dict)} 条 (默认: {default_gold_file})")
 
     all_preds = []
     all_golds = []
@@ -174,16 +208,29 @@ def evaluate_results(results_file, gold_file=None, pred_key='style_answer', gold
     for pred_item in predictions:
         idx = int(pred_item['idx'])
 
-        if idx >= len(df_gold):
-            print(f"警告: 索引 {idx} 超出范围，跳过")
-            continue
+        if use_id_match:
+            # 通过id匹配：idx从0开始，id从1开始
+            match_id = idx + 1
+            if match_id not in gold_dict:
+                print(f"警告: id {match_id} 不存在于标准答案中，跳过")
+                continue
+            gold_answer = str(gold_dict[match_id])
+        else:
+            # 通过索引匹配
+            if idx >= len(df_gold):
+                print(f"警告: 索引 {idx} 超出范围，跳过")
+                continue
+            gold_answer = str(df_gold.loc[idx, gold_key])
 
         pred_answer = str(pred_item.get(pred_key, pred_item.get('answer', '')))
-        gold_answer = str(df_gold.loc[idx, gold_key])
 
         all_preds.append(pred_answer)
         all_golds.append(gold_answer)
         all_indices.append(idx)
+
+    if len(all_preds) == 0:
+        print("错误: 没有匹配到任何数据")
+        return None, None
 
     bert_scores = compute_bert_score_batch(all_preds, all_golds)
 
@@ -208,10 +255,30 @@ def evaluate_results(results_file, gold_file=None, pred_key='style_answer', gold
 
     summary = {
         'total_samples': len(df_scores),
+        'metrics': {
+            'exact_match': df_scores['exact_match'].mean(),
+            'rouge1_f1': df_scores['rouge1_f1'].mean(),
+            'bert_score_f1': df_scores['bert_score_f1'].mean(),
+        },
+        'weights': {
+            'bert_score': 0.5,
+            'rouge1': 0.25,
+            'exact_match': 0.25
+        },
+        'final_score': df_scores['final_score'].mean(),
+        # 保留原有字段兼容性
         'exact_match': df_scores['exact_match'].mean(),
         'rouge1_f1': df_scores['rouge1_f1'].mean(),
         'bert_score_f1': df_scores['bert_score_f1'].mean(),
-        'final_score': df_scores['final_score'].mean()
+        # 额外统计
+        'statistics': {
+            'exact_match_count': int(df_scores['exact_match'].sum()),
+            'rouge1_f1_std': df_scores['rouge1_f1'].std(),
+            'bert_score_f1_std': df_scores['bert_score_f1'].std(),
+            'final_score_std': df_scores['final_score'].std(),
+            'final_score_min': df_scores['final_score'].min(),
+            'final_score_max': df_scores['final_score'].max(),
+        }
     }
 
     return summary, df_scores
@@ -699,8 +766,10 @@ if __name__ == "__main__":
                         help='消融实验结果目录')
     parser.add_argument('--error_analysis', action='store_true',
                         help='是否进行错误分析')
-    parser.add_argument('--save', action='store_true',
-                        help='是否保存详细评估结果')
+    parser.add_argument('--no_save', action='store_true',
+                        help='不保存评估结果（默认会保存）')
+    parser.add_argument('--output_dir', type=str, default='.',
+                        help='评估结果输出目录（默认当前目录）')
 
     args = parser.parse_args()
 
@@ -708,27 +777,57 @@ if __name__ == "__main__":
         # 运行消融实验分析
         analyzer = AblationAnalyzer(gold_file=args.gold, pred_key=args.pred_key)
         analyzer.load_all_experiments(args.ablation_dir)
-        analyzer.generate_report()
+        report = analyzer.generate_report()
+
+        # 保存消融实验报告
+        if not args.no_save:
+            import os
+            report_file = os.path.join(args.output_dir, 'ablation_report.json')
+            with open(report_file, 'w', encoding='utf-8') as f:
+                json.dump(report, f, ensure_ascii=False, indent=2)
+            print(f"\n消融实验报告已保存到: {report_file}")
+
     elif args.compare:
         # 比较多个实验
-        compare_experiments(args.compare, args.gold, args.pred_key)
+        all_summaries = compare_experiments(args.compare, args.gold, args.pred_key)
+
+        # 保存对比结果
+        if not args.no_save:
+            import os
+            compare_file = os.path.join(args.output_dir, 'compare_results.json')
+            with open(compare_file, 'w', encoding='utf-8') as f:
+                json.dump(all_summaries, f, ensure_ascii=False, indent=2)
+            print(f"\n对比结果已保存到: {compare_file}")
+
     elif args.results:
         # 评估单个结果
         summary, df_scores = evaluate_results(
             args.results, args.gold, args.pred_key, args.gold_key
         )
+
+        if summary is None:
+            print("评估失败")
+            exit(1)
+
         print_summary(summary)
 
         if args.error_analysis:
             error_analysis(df_scores)
             high_score_analysis(df_scores)
 
-        if args.save:
-            output_file = args.results.replace('.jsonl', '_eval.csv')
+        # 默认保存评估结果
+        if not args.no_save:
+            import os
+            # 获取结果文件的基础名
+            base_name = os.path.basename(args.results).replace('.jsonl', '')
+
+            # 保存详细评估结果
+            output_file = os.path.join(args.output_dir, f'{base_name}_eval.csv')
             df_scores.to_csv(output_file, index=False, encoding='utf-8-sig')
             print(f"\n详细评估结果已保存到: {output_file}")
 
-            summary_file = args.results.replace('.jsonl', '_summary.json')
+            # 保存汇总结果
+            summary_file = os.path.join(args.output_dir, f'{base_name}_summary.json')
             with open(summary_file, 'w', encoding='utf-8') as f:
                 json.dump(summary, f, ensure_ascii=False, indent=2)
             print(f"汇总结果已保存到: {summary_file}")
