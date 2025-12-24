@@ -1,0 +1,25 @@
+{
+  "total_samples": 500,
+  "metrics": {
+    "exact_match": 0.27,
+    "rouge1_f1": 0.5560564753953536,
+    "bert_score_f1": 0.586417213883251
+  },
+  "weights": {
+    "bert_score": 0.5,
+    "rouge1": 0.25,
+    "exact_match": 0.25
+  },
+  "final_score": 0.49972272579046395,
+  "exact_match": 0.27,
+  "rouge1_f1": 0.5560564753953536,
+  "bert_score_f1": 0.586417213883251,
+  "statistics": {
+    "exact_match_count": 135,
+    "rouge1_f1_std": 0.3508994196917,
+    "bert_score_f1_std": 0.32745399337465636,
+    "final_score_std": 0.33790796470502404,
+    "final_score_min": -0.06928381323814392,
+    "final_score_max": 1.0000004172325134
+  }
+}

@@ -13,6 +13,8 @@ env/
 venv/
 ENV/
 .venv
+*.npy
+*.jsonl
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -34,3 +36,4 @@ Thumbs.db
 *.ckpt
 checkpoints/
 outputs/
+*.log
